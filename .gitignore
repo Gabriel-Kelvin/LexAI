@@ -1,0 +1,26 @@
+# Virtual Environment
+.venv/
+
+# Bolt Files
+.bolt/
+
+# Django Files
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+
+# Environment Variables
+.env
+
+# Node.js Files (if used)
+node_modules/
+package-lock.json
+
+# Static/Media Files (optional)
+/media/
+
+# VSCode/IDE Specific
+.vscode/
+.idea/
+.DS_Store

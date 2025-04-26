@@ -1,0 +1,277 @@
+{% extends "chat_app/base.html" %}
+
+{% block title %}Document Analyzer - Lex AI{% endblock %}
+
+{% block content %}
+<div class="document-analyzer-container">
+    <!-- Sidebar for document listing -->
+    <div class="document-sidebar">
+        <div class="document-sidebar-header">
+            <h2>Your Documents</h2>
+            <form id="uploadForm" action="{% url 'upload_document' %}" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <label for="document" class="upload-button">
+                    <i class="fas fa-plus"></i>
+                    <span>Upload</span>
+                    <input type="file" id="document" name="document" hidden>
+                </label>
+            </form>
+        </div>
+
+        <div class="document-list">
+            {% if documents %}
+                {% for document in documents %}
+                    <form method="post" action="{% url 'document_analyzer' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="document_id" value="{{ document.id }}">
+                        <div class="document-item {% if selected_document and selected_document.id == document.id %}active{% endif %}">
+                            <button type="submit" class="document-select-btn">
+                                <i class="fas fa-file-alt document-icon"></i>
+                                <span class="document-title">{{ document.title }}</span>
+                            </button>
+                            <a href="{% url 'delete_document' document.id %}" class="document-delete-btn" onclick="return confirm('Are you sure you want to delete this document?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </div>
+                    </form>
+                {% endfor %}
+            {% else %}
+                <div class="empty-document-list">
+                    <p>No documents uploaded yet.</p>
+                    <p>Upload a document to get started.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Main content area -->
+    <div class="document-chat-container">
+        {% if selected_document %}
+            <!-- Document Chat Header -->
+            <div class="chat-header">
+                <div class="chat-title">
+                    <i class="fas fa-file-alt header-icon"></i>
+                    <h1>{{ selected_document.title }}</h1>
+                </div>
+                <div class="chat-actions">
+                    <button id="clearChatBtn" class="action-button">
+                        <i class="fas fa-trash"></i>
+                        <span>Clear Chat</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Document Chat Messages Area -->
+            <div class="chat-messages" id="chatMessages">
+                {% for message in chat_messages %}
+                    <div class="chat-message {% if message.is_user %}user-message{% else %}ai-message{% endif %}">
+                        <div class="message-avatar">
+                            {% if message.is_user %}
+                                <i class="fas fa-user"></i>
+                            {% else %}
+                                <i class="fas fa-file-alt"></i>
+                            {% endif %}
+                        </div>
+                        <div class="message-content">
+                            <div class="message-text">{{ message.content|linebreaks }}</div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Document Chat Input Area -->
+            <div class="chat-input-container">
+                <form id="chatForm" class="chat-form">
+                    {% csrf_token %}
+                    <div class="chat-input-wrapper">
+                        <textarea id="userInput" class="chat-input" placeholder="Ask me about this document..."></textarea>
+                        <button type="submit" class="send-button">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        {% else %}
+            <!-- Empty state when no document is selected -->
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <h2>Select or upload a document</h2>
+                <p>Choose a document from the sidebar to analyze or upload a new one.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const uploadForm = document.getElementById('uploadForm');
+        const documentInput = document.getElementById('document');
+        const chatForm = document.getElementById('chatForm');
+        const userInput = document.getElementById('userInput');
+        const chatMessages = document.getElementById('chatMessages');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+
+        // Handle document upload
+        if (documentInput) {
+            documentInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    uploadForm.submit();
+                }
+            });
+        }
+
+        // Handle chat form submission
+        if (chatForm) {
+            chatForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const userMessage = userInput.value.trim();
+                if (!userMessage) return;
+
+                // Add user message to UI
+                addMessage(userMessage, true);
+
+                // Clear input
+                userInput.value = '';
+                userInput.style.height = 'auto';
+
+                // Add thinking indicator
+                const thinkingElement = addThinkingIndicator();
+
+                // Send to server
+                fetch("{% url 'get_document_response' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({ message: userMessage })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Remove thinking indicator
+                    if (thinkingElement) {
+                        thinkingElement.remove();
+                    }
+
+                    // Add AI response
+                    if (data.response) {
+                        addMessage(data.response, false);
+                    } else if (data.error) {
+                        addMessage("Error: " + data.error, false);
+                    }
+                })
+                .catch(error => {
+                    // Remove thinking indicator
+                    if (thinkingElement) {
+                        thinkingElement.remove();
+                    }
+
+                    // Show error
+                    addMessage("Sorry, there was an error processing your request.", false);
+                    console.error('Error:', error);
+                });
+            });
+        }
+
+        // Clear chat history
+        if (clearChatBtn) {
+            clearChatBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to clear the chat history?')) {
+                    fetch("{% url 'clear_document_history' %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Reload the page to refresh chat history
+                            window.location.reload();
+                        } else {
+                            console.error('Error clearing chat history:', data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                }
+            });
+        }
+
+        // Function to add message to UI
+        function addMessage(content, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${isUser ? 'user-message' : 'ai-message'}`;
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'message-avatar';
+
+            const icon = document.createElement('i');
+            icon.className = isUser ? 'fas fa-user' : 'fas fa-file-alt';
+            avatarDiv.appendChild(icon);
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text';
+            textDiv.innerHTML = content.replace(/\n/g, '<br>');
+
+            contentDiv.appendChild(textDiv);
+            messageDiv.appendChild(avatarDiv);
+            messageDiv.appendChild(contentDiv);
+
+            chatMessages.appendChild(messageDiv);
+
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Function to add thinking indicator
+        function addThinkingIndicator() {
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'chat-message ai-message thinking';
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'message-avatar';
+
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-file-alt';
+            avatarDiv.appendChild(icon);
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text';
+            textDiv.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+
+            contentDiv.appendChild(textDiv);
+            thinkingDiv.appendChild(avatarDiv);
+            thinkingDiv.appendChild(contentDiv);
+
+            chatMessages.appendChild(thinkingDiv);
+
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            return thinkingDiv;
+        }
+
+        // Auto-resize textarea
+        if (userInput) {
+            userInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

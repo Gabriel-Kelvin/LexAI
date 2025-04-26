@@ -1,0 +1,211 @@
+{% extends "chat_app/base.html" %}
+
+{% block title %}Legal Assistant - Lex AI{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <!-- Chat Header -->
+    <div class="chat-header">
+        <div class="chat-title">
+            <i class="fas fa-balance-scale header-icon"></i>
+            <h1>Legal Assistant</h1>
+        </div>
+        <div class="chat-actions">
+            <button id="clearChatBtn" class="action-button">
+                <i class="fas fa-trash"></i>
+                <span>Clear Chat</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Chat Messages Area -->
+    <div class="chat-messages" id="chatMessages">
+        {% for message in chat_messages %}
+            <div class="chat-message {% if message.is_user %}user-message{% else %}ai-message{% endif %}">
+                <div class="message-avatar">
+                    {% if message.is_user %}
+                        <i class="fas fa-user"></i>
+                    {% else %}
+                        <i class="fas fa-balance-scale"></i>
+                    {% endif %}
+                </div>
+                <div class="message-content">
+                    <div class="message-text">{{ message.content|linebreaks }}</div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Input Area -->
+    <div class="chat-input-container">
+        <form id="chatForm" class="chat-form">
+            {% csrf_token %}
+            <div class="chat-input-wrapper">
+                <textarea id="userInput" class="chat-input" placeholder="Ask me about legal matters..."></textarea>
+                <button type="submit" class="send-button">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const chatForm = document.getElementById('chatForm');
+        const userInput = document.getElementById('userInput');
+        const chatMessages = document.getElementById('chatMessages');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+
+        // Handle chat form submission
+        if (chatForm) {
+            chatForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const userMessage = userInput.value.trim();
+                if (!userMessage) return;
+
+                // Add user message to UI
+                addMessage(userMessage, true);
+
+                // Clear input
+                userInput.value = '';
+                userInput.style.height = 'auto';
+
+                // Add thinking indicator
+                const thinkingElement = addThinkingIndicator();
+
+                // Send to server
+                fetch("{% url 'get_legal_response' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({ message: userMessage })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Remove thinking indicator
+                    if (thinkingElement) {
+                        thinkingElement.remove();
+                    }
+
+                    // Add AI response
+                    if (data.response) {
+                        addMessage(data.response, false);
+                    } else if (data.error) {
+                        addMessage("Error: " + data.error, false);
+                    }
+                })
+                .catch(error => {
+                    // Remove thinking indicator
+                    if (thinkingElement) {
+                        thinkingElement.remove();
+                    }
+
+                    // Show error
+                    addMessage("Sorry, there was an error processing your request.", false);
+                    console.error('Error:', error);
+                });
+            });
+        }
+
+        // Clear chat history
+        if (clearChatBtn) {
+            clearChatBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to clear the chat history?')) {
+                    fetch("{% url 'clear_legal_history' %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Clear chat messages UI
+                            chatMessages.innerHTML = '';
+                            // Add welcome message
+                            addMessage("Hello, I'm your AI Legal Assistant. How can I help you with legal matters today?", false);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                }
+            });
+        }
+
+        // Function to add a message to the UI
+        function addMessage(content, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${isUser ? 'user-message' : 'ai-message'}`;
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'message-avatar';
+            avatarDiv.innerHTML = `<i class="fas fa-${isUser ? 'user' : 'balance-scale'}"></i>`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text';
+            textDiv.innerText = content;
+
+            contentDiv.appendChild(textDiv);
+            messageDiv.appendChild(avatarDiv);
+            messageDiv.appendChild(contentDiv);
+
+            chatMessages.appendChild(messageDiv);
+
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Function to add thinking indicator
+        function addThinkingIndicator() {
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'chat-message ai-message thinking';
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'message-avatar';
+            avatarDiv.innerHTML = '<i class="fas fa-balance-scale"></i>';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const thinkingIndicator = document.createElement('div');
+            thinkingIndicator.className = 'thinking-indicator';
+            thinkingIndicator.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+
+            contentDiv.appendChild(thinkingIndicator);
+            thinkingDiv.appendChild(avatarDiv);
+            thinkingDiv.appendChild(contentDiv);
+
+            chatMessages.appendChild(thinkingDiv);
+
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            return thinkingDiv;
+        }
+
+        // Auto-resize textarea
+        if (userInput) {
+            userInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+        }
+
+        // Scroll chat to bottom on load
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

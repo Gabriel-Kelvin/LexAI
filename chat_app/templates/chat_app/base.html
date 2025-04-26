@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lex AI - {% block title %}Home{% endblock %}</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        {% if user.is_authenticated %}
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-text">LEX AI</span>
+                </div>
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-section">
+                        <span class="nav-section-title">Assistants</span>
+                        <ul class="nav-items">
+                            <li {% if request.path == '/chat/' %}class="active"{% endif %}>
+                                <a href="{% url 'chat' %}">
+                                    <i class="fas fa-globe"></i>
+                                    <span class="nav-label">T&C Chat</span>
+                                </a>
+                            </li>
+                            <li {% if request.path == '/legal/' %}class="active"{% endif %}>
+                                <a href="{% url 'legal_assistant' %}">
+                                    <i class="fas fa-balance-scale"></i>
+                                    <span class="nav-label">Legal Assistant</span>
+                                </a>
+                            </li>
+                            <li {% if request.path == '/documents/' %}class="active"{% endif %}>
+                                <a href="{% url 'document_analyzer' %}">
+                                    <i class="fas fa-file-alt"></i>
+                                    <span class="nav-label">Document Analyzer</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="user-details">
+                        <span class="username">{{ user.username }}</span>
+                    </div>
+                </div>
+                <a href="{% url 'logout' %}" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span class="nav-label">Logout</span>
+                </a>
+            </div>
+        </aside>
+        {% endif %}
+
+        <!-- Sidebar Trigger for Collapsed State -->
+        {% if user.is_authenticated %}
+        <div class="sidebar-trigger" id="sidebarTrigger">
+            <i class="fas fa-chevron-right"></i>
+        </div>
+        {% endif %}
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Common JS -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarTrigger = document.getElementById('sidebarTrigger');
+            const mainContent = document.getElementById('mainContent');
+            const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+
+            // Check for saved sidebar state
+            const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+
+            // Initialize sidebar state
+            if (sidebar && sidebarCollapsed) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+                sidebarTrigger.classList.add('visible');
+            }
+
+            // Sidebar toggle button handler
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    toggleSidebar();
+                });
+            }
+
+            // Sidebar trigger handler (to reopen sidebar)
+            if (sidebarTrigger) {
+                sidebarTrigger.addEventListener('click', function() {
+                    toggleSidebar();
+                });
+            }
+
+            // Mobile menu toggle handler
+            if (mobileMenuToggle) {
+                mobileMenuToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('sidebar-expanded');
+                });
+            }
+
+            // Function to toggle sidebar
+            function toggleSidebar() {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('expanded');
+                sidebarTrigger.classList.toggle('visible');
+
+                // Save state to localStorage
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                localStorage.setItem('sidebarCollapsed', isCollapsed.toString());
+            }
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
