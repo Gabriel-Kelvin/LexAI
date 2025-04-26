@@ -1,4 +1,4 @@
-# Lex AI - Legal Document Analyzer and Advisor
+# Lex AI - Your Personal Legal Assistant
 
 Lex AI is an AI-powered web application built with Django, HTML, CSS, and JavaScript. It helps users:
 - Chat with Terms & Conditions / Privacy Policies
